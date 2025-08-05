@@ -1,4 +1,4 @@
-# Elevate Fitness - Project Sem 6
+# Elevate Fitness
 
 **Elevate Fitness** is a Python-based fitness and wellness web application designed to provide users with customized exercise schedules, diet plans tailored to their body types, and expert guidance.
 
