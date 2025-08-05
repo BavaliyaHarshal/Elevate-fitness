@@ -1,38 +1,45 @@
 import mysql.connector
-from mysql.connector import Error
+import os
+from dotenv import load_dotenv
 
-# ✅ Function to connect to MySQL database
+load_dotenv()
+
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host="localhost",
-            user="root",  # Change to your MySQL username
-            password="root@123",  # Change to your MySQL password
+            host="localhost",  # Direct value instead of using getenv
+            user="root",
+            password="root@123",
             database="gymDB"
         )
         return conn
-    except Error as e:
-        print(f"Error connecting to MySQL: {e}")
+    except mysql.connector.Error as err:
+        print(f"Database Error: {err}")
         return None
 
-# ✅ Function to create necessary tables
 def create_tables():
     conn = get_db_connection()
     if conn is None:
-        print("Failed to connect to database.")
-        return
-
+        return False
+    
     cursor = conn.cursor()
-    # Users Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(50) NOT NULL,
-            email VARCHAR(100) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL
-        )
-    """)
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print("Tables created successfully!")
+    try:
+        # Create users table with session data
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                session_id VARCHAR(255),
+                session_expiry DATETIME
+            )
+        """)
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error creating tables: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()

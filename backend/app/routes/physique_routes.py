@@ -1,30 +1,41 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 from app.utils.database import get_db_connection
 import google.generativeai as genai
 import os
+from dotenv import load_dotenv  # Load environment variables
 
 physique_routes = Blueprint("physique_routes", __name__)
 
-# Load API key from environment variables
+# Load environment variables from .env
+load_dotenv()
+
+# Retrieve the API key from environment variables
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Configure Gemini AI
-genai.configure(api_key=GEMINI_API_KEY)
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    print("⚠️ Warning: GEMINI_API_KEY is not set!")
+
+@physique_routes.route("/")
+def physique():
+    return render_template('physique.html')
 
 @physique_routes.route("/physique", methods=["POST"])
 def generate_physique():
-    data = request.json
-    user_id = data.get("user_id")
-    height = data.get("height")
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request, JSON expected"}), 400
+
     weight = data.get("weight")
+    height = data.get("height")
     age = data.get("age")
     gender = data.get("gender")
     diseases = data.get("diseases", "")
 
-    if not all([user_id, height, weight, age, gender]):
+    if not all([weight, height, age, gender]):
         return jsonify({"error": "Missing required fields"}), 400
 
-    # Structured prompt for short, clear output
     ai_prompt = f"""
     Create a SHORT & well-structured fitness plan for a {age}-year-old {gender} 
     with height {height} cm, weight {weight} kg, and diseases: {diseases}.
@@ -40,27 +51,24 @@ def generate_physique():
     - Cardio: (Duration & type)
     - Strength: (Exercise names)
     - Flexibility: (Exercise names)
-    
+
     Keep it concise and easy to follow.
     """
 
     try:
         model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(ai_prompt)
-        plan = response.text.strip()  # Extract clean text
+        
+        response = model.generate_content(
+            ai_prompt,
+            generation_config={
+                "temperature": 0.0,
+                "max_output_tokens": 300
+            }
+        )
 
-        # Store in database
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO physique (user_id, height, weight, age, gender, diseases, diet_plan, exercise_plan, schedule)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-        """, (user_id, height, weight, age, gender, diseases, plan, plan))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        plan = response.text.strip() if response and response.text else "Error: No response from AI"
 
         return jsonify({"message": "Plan generated successfully!", "plan": plan}), 201
-    
+
     except Exception as e:
         return jsonify({"error": f"Gemini AI error: {str(e)}"}), 500
